@@ -166,6 +166,9 @@ public class TournamentController {
                     }
                     nextMatchId++;
                 }
+            } else {
+                tournament.setState(TournamentState.FINISHED);
+                tournamentService.updateTournament(tournamentId, tournament);
             }
             tournament = tournamentService.getTournamentById(tournamentId);
         }
