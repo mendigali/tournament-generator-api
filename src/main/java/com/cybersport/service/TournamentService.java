@@ -1,104 +1,88 @@
 package com.cybersport.service;
 
-import com.cybersport.exception.TournamentException;
-import com.cybersport.model.Participant;
 import com.cybersport.model.Tournament;
-import com.cybersport.repositories.MatchRepository;
-import com.cybersport.repositories.ParticipantRepository;
-import com.cybersport.repositories.TournamentRepository;
+import com.cybersport.repository.MatchRepository;
+import com.cybersport.repository.TeamRepository;
+import com.cybersport.repository.TournamentRepository;
+import com.cybersport.util.TournamentState;
 import com.cybersport.util.Utils;
 import org.springframework.stereotype.Service;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
 @Service
 public class TournamentService {
-    private final TournamentRepository tournamentRepository;
     private final MatchRepository matchRepository;
-    private final ParticipantRepository participantRepository;
+    private final TeamRepository teamRepository;
+    private final TournamentRepository tournamentRepository;
 
-    public TournamentService(TournamentRepository tournamentRepository, MatchRepository matchRepository, ParticipantRepository participantRepository) {
-        this.tournamentRepository = tournamentRepository;
+    public TournamentService(
+            MatchRepository matchRepository,
+            TeamRepository teamRepository,
+            TournamentRepository tournamentRepository
+    ) {
         this.matchRepository = matchRepository;
-        this.participantRepository = participantRepository;
+        this.teamRepository = teamRepository;
+        this.tournamentRepository = tournamentRepository;
     }
 
-    public List<Tournament> findAllTournaments() {
+    public List<Tournament> getAllTournaments() {
         return tournamentRepository.findAll();
     }
 
-    public Tournament findTournamentById(Long id) {
+    public Tournament getTournamentById(Long id) {
         Optional<Tournament> tournamentOptional = tournamentRepository.findById(id);
-
-        return tournamentOptional.orElseThrow(() -> new TournamentException(Utils.tournamentNotFoundMessage(id)));
+        return tournamentOptional
+                .orElseThrow(() -> new RuntimeException("Tournament was not found! ID: " + id));
     }
 
     public Tournament createTournament(Tournament tournament) {
-        if (tournament.getMaxParticipants() == null || tournament.getMaxParticipants() % 8 != 0) {
-            throw new TournamentException("Max number of participants should be multiple of 8!");
+        if (!Utils.isPowerOfTwo(tournament.getBracketSize())) {
+            throw new RuntimeException("Bracket size must be power of 2!");
         }
-
+        tournament.setState(TournamentState.UPCOMING);
         return tournamentRepository.save(tournament);
     }
 
-    public String startTournament(Long id) {
-        if (!tournamentRepository.existsById(id)) {
-            throw new TournamentException(Utils.tournamentNotFoundMessage(id));
-        }
-
+    public Tournament updateTournament(Long id, Tournament updatedTournament) {
         return tournamentRepository.findById(id)
                 .map(tournament -> {
-                    tournament.setOnHold(false);
-                    List<Participant> participants = tournament.getParticipants();
-                    Collections.shuffle(participants);
-                    tournament.setParticipants(participants);
-                    Utils.matchParticipants(tournament, matchRepository, participants, participantRepository);
+                    if (updatedTournament.getBracketSize() != null &&
+                        !Utils.isPowerOfTwo(updatedTournament.getBracketSize())) {
+                        throw new RuntimeException("Bracket size must be power of 2!");
+                    }
 
-                    return "Tournament started successfully!\n";
-                }).orElseThrow(() -> new TournamentException("Participant not found!"));
-    }
+                    tournament.setName(
+                            Optional.ofNullable(updatedTournament.getName())
+                                    .orElse(tournament.getName())
+                    );
 
-    public String holdTournament(Long id) {
-        if (!tournamentRepository.existsById(id)) {
-            throw new TournamentException(Utils.tournamentNotFoundMessage(id));
-        }
+                    tournament.setBracketSize(
+                            Optional.ofNullable(updatedTournament.getBracketSize())
+                                    .orElse(tournament.getBracketSize())
+                    );
 
-        return tournamentRepository.findById(id)
-                .map(tournament -> {
-                    tournament.setOnHold(true);
+                    tournament.setState(
+                            Optional.ofNullable(updatedTournament.getState())
+                                    .orElse(tournament.getState())
+                    );
 
-                    return "Tournament is now on hold!";
-                }).orElseThrow(() -> new TournamentException(Utils.tournamentNotFoundMessage(id)));
-    }
+                    tournament.setTeams(
+                            Optional.ofNullable(updatedTournament.getTeams())
+                                    .orElse(tournament.getTeams())
+                    );
 
-    public Tournament updateTournament(Long id, Tournament tournamentUpdated) {
-        if (!tournamentRepository.existsById(id)) {
-            throw new TournamentException(Utils.tournamentNotFoundMessage(id));
-        }
-
-        return tournamentRepository.findById(id)
-                .map(tournament -> {
-                    tournament.setMaxParticipants(tournamentUpdated.getMaxParticipants());
-                    tournament.setMatchesNumber(tournamentUpdated.getMatchesNumber());
-                    tournament.setOnHold(tournamentUpdated.isOnHold());
-                    tournament.setParticipants(tournamentUpdated.getParticipants());
+                    tournament.setMatches(
+                            Optional.ofNullable(updatedTournament.getMatches())
+                                    .orElse(tournament.getMatches())
+                    );
 
                     return tournamentRepository.save(tournament);
-                }).orElseThrow(() -> new TournamentException(Utils.tournamentNotFoundMessage(id)));
+                }).orElseThrow(() -> new RuntimeException("Tournament was not found! ID: " + id));
     }
 
-    public String removeTournament(Long id) {
-        if (!tournamentRepository.existsById(id)) {
-            throw new TournamentException(Utils.tournamentNotFoundMessage(id));
-        }
-
-        return tournamentRepository.findById(id)
-                .map(tournament -> {
-                    tournamentRepository.delete(tournament);
-
-                    return "Tournament deleted successfully!";
-                }).orElseThrow(() -> new TournamentException(Utils.tournamentNotFoundMessage(id)));
+    public void deleteTournament(Long id) {
+        tournamentRepository.deleteById(id);
     }
 }

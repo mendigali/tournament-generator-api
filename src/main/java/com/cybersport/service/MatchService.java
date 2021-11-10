@@ -1,99 +1,75 @@
 package com.cybersport.service;
 
-import com.cybersport.exception.TournamentException;
 import com.cybersport.model.Match;
-import com.cybersport.model.Participant;
-import com.cybersport.model.Tournament;
-import com.cybersport.repositories.MatchRepository;
-import com.cybersport.repositories.ParticipantRepository;
-import com.cybersport.repositories.TournamentRepository;
-import com.cybersport.util.Utils;
+import com.cybersport.repository.MatchRepository;
+import com.cybersport.repository.TeamRepository;
+import com.cybersport.repository.TournamentRepository;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 @Service
 public class MatchService {
-    private final TournamentRepository tournamentRepository;
     private final MatchRepository matchRepository;
-    private final ParticipantRepository participantRepository;
+    private final TeamRepository teamRepository;
+    private final TournamentRepository tournamentRepository;
 
-    public MatchService(TournamentRepository tournamentRepository, MatchRepository matchRepository, ParticipantRepository participantRepository) {
-        this.tournamentRepository = tournamentRepository;
+    public MatchService(
+            MatchRepository matchRepository,
+            TeamRepository teamRepository,
+            TournamentRepository tournamentRepository
+    ) {
         this.matchRepository = matchRepository;
-        this.participantRepository = participantRepository;
+        this.teamRepository = teamRepository;
+        this.tournamentRepository = tournamentRepository;
     }
 
-    public List<Match> findAllMatches(Long tournamentId) {
-        Optional<Tournament> tournamentOptional = tournamentRepository.findById(tournamentId);
-
-        if (tournamentOptional.isEmpty()) {
-            throw new TournamentException(Utils.tournamentNotFoundMessage(tournamentId));
-        }
-
-        return tournamentOptional.get().getMatches();
+    public Match getMatchById(Long id) {
+        Optional<Match> matchOptional = matchRepository.findById(id);
+        return matchOptional
+                .orElseThrow(() -> new RuntimeException("Match was not found! ID: " + id));
     }
 
-    public Match summarizeMatch(Long tournamentId,
-                                Long matchId,
-                                Long firstParticipantScore,
-                                Long secondParticipantScore) {
-        Optional<Tournament> tournamentOptional = tournamentRepository.findById(tournamentId);
+    public Match createMatch(Match match) {
+        return matchRepository.save(match);
+    }
 
-        if (tournamentOptional.isEmpty()) {
-            throw new TournamentException(Utils.tournamentNotFoundMessage(tournamentId));
-        }
+    public List<Match> createAllMatches(List<Match> matches) {
+        return matchRepository.saveAll(matches);
+    }
 
-        Tournament tournament = tournamentOptional.get();
-
-        if (firstParticipantScore.equals(secondParticipantScore)) {
-            throw new TournamentException("Scores should be different! Tournament ID: " + tournamentId + ", match ID: " + matchId);
-        }
-
-        return matchRepository.findById(matchId)
+    public Match updateMatch(Long id, Match updatedMatch) {
+        return matchRepository.findById(id)
                 .map(match -> {
-                    if (match.getFinishTime() != null) {
-                        return match;
-                    }
+                    match.setTeam1(Optional.ofNullable(updatedMatch.getTeam1())
+                            .orElse(match.getTeam1())
+                    );
 
-                    match.setFirstParticipantScore(firstParticipantScore);
-                    match.setSecondParticipantScore(secondParticipantScore);
-                    match.setFinishTime(LocalDateTime.now());
+                    match.setTeam1_score(
+                            Optional.ofNullable(updatedMatch.getTeam1_score())
+                                    .orElse(match.getTeam1_score())
+                    );
 
-                    Optional<Participant> firstParticipantOptional =
-                            participantRepository.findById(match.getFirstParticipantId());
-                    if (firstParticipantOptional.isEmpty()) {
-                        return match;
-                    }
-                    Participant firstParticipant = firstParticipantOptional.get();
+                    match.setTeam2(Optional.ofNullable(updatedMatch.getTeam2())
+                            .orElse(match.getTeam2())
+                    );
 
-                    Optional<Participant> secondParticipantOptional =
-                            participantRepository.findById(match.getSecondParticipantId());
-                    if (secondParticipantOptional.isEmpty()) {
-                        return match;
-                    }
-                    Participant secondParticipant = secondParticipantOptional.get();
+                    match.setTeam2_score(
+                            Optional.ofNullable(updatedMatch.getTeam2_score())
+                                    .orElse(match.getTeam2_score())
+                    );
 
-                    if (firstParticipantScore < secondParticipantScore) {
-                        firstParticipant.setActive(false);
-                    } else {
-                        secondParticipant.setActive(false);
-                    }
-
-                    Utils.setMatchesPlayed(Utils.getMatchesPlayed() + 1);
-
-                    if (Utils.getMatchesPlayed().equals(Utils.getTotalMatches())) {
-                        Utils.matchParticipants(tournament, matchRepository,
-                                tournament.getParticipants(), participantRepository);
-                        Utils.setMatchesPlayed(0);
-                    }
-
-                    participantRepository.save(firstParticipant);
-                    participantRepository.save(secondParticipant);
+                    match.setRoundNumber(
+                            Optional.ofNullable(updatedMatch.getRoundNumber())
+                                    .orElse(match.getRoundNumber())
+                    );
 
                     return matchRepository.save(match);
-                }).orElseThrow(() -> new TournamentException(Utils.matchNotFoundMessage(matchId)));
+                }).orElseThrow(() -> new RuntimeException("Match was not found! ID: " + id));
+    }
+
+    public void deleteMatch(Long id) {
+        matchRepository.deleteById(id);
     }
 }

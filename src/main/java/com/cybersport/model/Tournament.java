@@ -1,78 +1,34 @@
 package com.cybersport.model;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.cybersport.util.TournamentState;
 import lombok.Data;
 
 import javax.persistence.*;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Data
 @Entity
-@Table(name = "tournament")
 public class Tournament {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Long tournamentId;
 
-    private Integer maxParticipants;
-    private Integer matchesNumber;
+    private String name;
+    private Integer bracketSize;
 
-    @JsonIgnore
-    private boolean onHold = true;
+    @Enumerated(EnumType.STRING)
+    private TournamentState state;
 
-    @JsonIgnore
-    @OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL, mappedBy = "tournament")
-    private List<Participant> participants;
+    @ManyToMany(cascade = CascadeType.PERSIST)
+    @JoinTable(name = "tournament_team",
+            joinColumns = @JoinColumn(name = "tournament_id"),
+            inverseJoinColumns = @JoinColumn(name = "team_id"))
+    private List<Team> teams;
 
-    @JsonIgnore
-    @OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL, mappedBy = "tournament")
+    @OneToMany(mappedBy = "tournament", fetch = FetchType.LAZY,
+            cascade = CascadeType.ALL)
     private List<Match> matches;
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public Integer getMaxParticipants() {
-        return maxParticipants;
-    }
-
-    public void setMaxParticipants(Integer maxParticipants) {
-        this.maxParticipants = maxParticipants;
-    }
-
-    public Integer getMatchesNumber() {
-        return matchesNumber;
-    }
-
-    public void setMatchesNumber(Integer matchesNumber) {
-        this.matchesNumber = matchesNumber;
-    }
-
-    public boolean isOnHold() {
-        return onHold;
-    }
-
-    public void setOnHold(boolean onHold) {
-        this.onHold = onHold;
-    }
-
-    public List<Participant> getParticipants() {
-        return participants;
-    }
-
-    public void setParticipants(List<Participant> participants) {
-        this.participants = participants;
-    }
-
-    public List<Match> getMatches() {
-        return matches;
-    }
-
-    public void setMatches(List<Match> matches) {
-        this.matches = matches;
-    }
 }
